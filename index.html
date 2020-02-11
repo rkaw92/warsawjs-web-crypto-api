@@ -1,0 +1,362 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<title>Web Crypto</title>
+
+	<meta charset="utf-8" />
+	<meta http-equiv="x-ua-compatible" content="ie=edge" />
+	<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+
+	<!-- Shower Theme -->
+	<link rel="stylesheet" href="vendors/shower-ribbon/styles/screen-16x10.css" />
+	<link rel="stylesheet" href="vendors/shower-warsawjs/styles/main.css" />
+
+	<!-- Prism.js -->
+	<link rel="stylesheet" href="vendors/prism/prism.css" />
+	<link rel="stylesheet" href="vendors/prism/custom-prism.css" />
+
+	<!-- Highlight.js -->
+	<link rel="stylesheet" href="vendors/highlight.js/default.min.css" />
+
+	<!-- Custom styles -->
+	<link rel="stylesheet" href="custom/style.css" />
+</head>
+<body class="shower list higher">
+	<header class="caption">
+		<h1>Web Crypto</h1>
+		<p>Demystifying cryptographic operations in the browser</p>
+	</header>
+
+	<section class="slide front-page">
+		<div class="logo">
+			<!-- Logo WarsawJS -->
+			<img src="pictures/logo/warsawjs-logo-light.png">
+		</div>
+		<div class="details">
+			<!-- 1. Avatar -->
+			<img src="pictures/robert.jpg" alt="Robert Kawecki (speaker)" />
+
+			<!-- 2. Speaker -->
+			<h2>Robert Kawecki</h2>
+
+			<!-- 3. Presentation title -->
+			<h2><strong>"Web Crypto: demystifying cryptographic operations in the browser"</strong></h2>
+
+			<!-- 4. Presentation date -->
+			<h2>2020-02-12</h2>
+
+			<!-- 5. Contact the speaker -->
+			<h2><a href="https://github.com/rkaw92">github.com/rkaw92</a></h2>
+
+			<!-- Listen, learn, read on. -->
+		</div>
+	</section>
+
+	<section class="slide">
+		<h2>This presentation is interactive</h2>
+		<p>A copy of these slides can be found at:</p>
+		<a href="http://webcrypto.pl" style="font-size: 6rem;">webcrypto.pl</a>
+		<p>Alternate link: TODO</p>
+		<p>Copy the code samples and paste them into DevTools.</p>
+	</section>
+
+	<section class="slide">
+		<h2>Security tools...</h2>
+		<ul>
+			<li>... assume correct usage</li>
+			<li>... target a threat model</li>
+		</ul>
+	</section>
+
+	<section class="slide">
+		<h2>Web threat model</h2>
+		<ul>
+			<li>Application code delivery</li>
+			<li>Transmission medium</li>
+			<li>Data storage</li>
+		</ul>
+	</section>
+
+	<section class="slide">
+		<h2>When to use</h2>
+		<ul>
+			<li>End-to-end security</li>
+			<li>Untrusted platforms</li>
+			<li>Protecting data at-rest</li>
+		</ul>
+	</section>
+
+	<section class="slide">
+		<h2>When not to use</h2>
+		<ul>
+			<li>Whenever HTTPS is sufficient</li>
+		</ul>
+	</section>
+
+	<section class="slide">
+		<h2>Encrypting a message (PKI)</h2>
+		<ul>
+			<li>Get public key of recipient<ul>
+				<li>Threat: getting somebody else's key</li>
+			</ul></li>
+			<li>Encrypt with public key</li>
+			<li>Send to recipient<ul>
+				<li>Policing the send access (S3, queues etc.)</li>
+				<li>Authenticating sent message</li>
+			</ul></li>
+		</ul>
+	</section>
+
+	<section class="slide">
+		<h2>Encrypting a message (PKI) - code</h2>
+		<pre class="code-sample wide"><code>
+			const encKeyDER = extractDER(publicPEM, 'public');
+			const encKey = await window.crypto.subtle.importKey(
+				'spki',
+				encKeyDER,
+				{ name: 'RSA-OAEP', hash: 'SHA-256' },
+				false,
+				[ 'encrypt' ]
+			);
+			const cryptotext = await window.crypto.subtle.encrypt(
+				{ name: 'RSA-OAEP' },
+				encKey,
+				(new TextEncoder()).encode('Hello, world!')
+			);
+		</code></pre>
+	</section>
+
+	<section class="slide">
+		<h2>Receiving a message (PKI)</h2>
+		<ul>
+			<li>Load own private key<ul>
+				<li>Challenge: storing the key</li>
+			</ul></li>
+			<li>Decrypt</li>
+			<li>Authenticate or check authorization</li>
+		</ul>
+	</section>
+
+	<section class="slide">
+		<h2>Receiving a message (PKI) - code</h2>
+		<pre class="code-sample wide"><code>
+			const decKeyDER = extractDER(privatePEM, 'private');
+			const decKey = await window.crypto.subtle.importKey(
+				'pkcs8', // Make sure it's really PKCS#8
+				decKeyDER,
+				{ name: 'RSA-OAEP', hash: 'SHA-256' },
+				false,
+				[ 'decrypt' ]
+			);
+			const plaintext = await window.crypto.subtle.decrypt(
+				{ name: 'RSA-OAEP' },
+				decKey,
+				cryptotext
+			);
+			console.log((new TextDecoder()).decode(plaintext));
+		</code></pre>
+	</section>
+
+	<section class="slide">
+		<h2>CLI: decrypting RSA message</h2>
+		<pre class="code-sample wide"><code class="language-bash">
+			openssl pkeyutl -inkey keys/private.pem -in encrypted.raw \
+			-pkeyopt rsa_padding_mode:oaep -pkeyopt rsa_oaep_md:sha256 \
+			-decrypt
+		</code></pre>
+		<p>Note: <span style="background-color: #EEE; padding: 0 10px;">openssl rsautl</span> is deprecated and will not work for OAEP.</p>
+	</section>
+
+	<section class="slide">
+		<h2>Big messages / key wrapping</h2>
+		<ul>
+			<li>Generate symmetric key ("message key") + one-time IV</li>
+			<li>Encrypt message</li>
+			<li>Wrap message key</li>
+			<li>Send message + IV + wrapped message key</li>
+		</ul>
+	</section>
+
+	<section class="slide">
+		<h2>Key wrapping - code 1/2</h2>
+		<pre class="code-sample wide"><code>
+			const messageKey = await window.crypto.subtle.generateKey(
+				{ name: 'AES-GCM', length: 256 },
+				true, // extractable - makes it wrappable
+				[ 'encrypt' ]
+			);
+			const iv = window.crypto.getRandomValues(new Uint8Array(12));
+			const cryptotext2 = await window.crypto.subtle.encrypt(
+				{ name: 'AES-GCM', iv: iv },
+				messageKey,
+				(new TextEncoder()).encode('Hello, GCM!')
+			);
+		</code></pre>
+	</section>
+
+	<section class="slide">
+		<h2>Key wrapping - code 2/2</h2>
+		<pre class="code-sample wide"><code>
+			const wrappingKey = await window.crypto.subtle.importKey(
+				'spki',
+				encKeyDER, // recipient's public key
+				{ name: 'RSA-OAEP', hash: 'SHA-256' },
+				false,
+				[ 'wrapKey' ]
+			);
+			const wrappedMessageKey = await crypto.subtle.wrapKey(
+				'raw', // format - we pick the smallest one
+				messageKey,
+				wrappingKey,
+				{ name: 'RSA-OAEP' }
+			);
+		</code></pre>
+	</section>
+
+	<section class="slide">
+		<h2>Key unwrapping - code 1/2</h2>
+		<pre class="code-sample wide"><code>
+			const unwrappingKey = await window.crypto.subtle.importKey(
+				'pkcs8',
+				decKeyDER, // recipient's private RSA key
+				{ name: 'RSA-OAEP', hash: 'SHA-256' },
+				false,
+				[ 'unwrapKey' ]
+			);
+			const unwrappedMessageKey = await crypto.subtle.unwrapKey(
+				'raw',
+				wrappedMessageKey,
+				unwrappingKey,
+				{ name: 'RSA-OAEP' },
+				{ name: 'AES-GCM' },
+				false, // no need for extractable
+				[ 'decrypt' ]
+			);
+		</code></pre>
+	</section>
+
+	<section class="slide">
+		<h2>Key unwrapping - code 2/2</h2>
+		<pre class="code-sample wide"><code>
+			const plaintext2 = await window.crypto.subtle.decrypt(
+				{ name: 'AES-GCM', iv: iv }, // remember to send IV!
+				unwrappedMessageKey,
+				cryptotext2
+			);
+			console.log((new TextDecoder()).decode(plaintext2));
+		</code></pre>
+	</section>
+
+	<section class="slide">
+		<h2>Key unwrapping in Node.js - code</h2>
+		<pre class="code-sample wide"><code>
+			const payload = buf.slice(0, buf.byteLength - 16);
+			const authTag = buf.slice(-16);
+			const unwrappedMessageKey = crypto.privateDecrypt({
+				key: privateKeyRaw,
+				padding: crypto.constants.RSA_PKCS1_OAEP_PADDING,
+				oaepHash: 'sha256'
+			});
+			const decipher = crypto.createDecipheriv(
+				'aes-256-gcm',
+				unwrappedMessageKey,
+				iv
+			);
+			decipher.setAuthTag(authTag);
+			const buf1 = decipher.update(content);
+			// Always need to call .final() to check the auth tag:
+			const buf2 = decipher.final();
+			const decryptedContent = Buffer.concat([ buf1, buf2 ]);
+		</code></pre>
+	</section>
+
+	<section class="slide">
+		<h2>Signing - code</h2>
+		<pre class="code-sample wide"><code>
+			const signingKeyDER = extractDER(privatePEM, 'private');
+			const signingKey = await window.crypto.subtle.importKey(
+				'pkcs8', // Make sure it's really PKCS#8
+				signingKeyDER,
+				{ name: 'RSA-PSS', hash: 'SHA-256' },
+				false,
+				[ 'sign' ]
+			);
+			const dataToSign = (new TextEncoder()).encode('Hello, sigs!');
+			const textSignature = await window.crypto.subtle.sign(
+				{ name: 'RSA-PSS', saltLength: 32 },
+				signingKey,
+				dataToSign
+			);
+		</code></pre>
+	</section>
+
+	<section class="slide">
+		<h2>Verifying - code</h2>
+		<pre class="code-sample wide"><code>
+			const verifyKeyDER = extractDER(publicPEM, 'public');
+			const verifyKey = await window.crypto.subtle.importKey(
+				'spki',
+				verifyKeyDER,
+				{ name: 'RSA-PSS', hash: 'SHA-256' },
+				false,
+				[ 'verify' ]
+			);
+			const isLegitimate = await window.crypto.subtle.verify(
+				{ name: 'RSA-PSS', saltLength: 32 },
+				verifyKey,
+				textSignature,
+				dataToSign // ArrayBuffer with "Hello, signatures!"
+			);
+		</code></pre>
+	</section>
+
+	<section class="slide">
+		<h2>Addendum: sign + encrypt</h2>
+		<ul>
+			<li>Vulnerability: Surreptitious forwarding</li>
+			<li><a href="http://world.std.com/~dtd/sign_encrypt/sign_encrypt7.html">Mitigation</a></li>
+		</ul>
+	</section>
+
+	<section class="slide">
+		<h2>Key takeaways</h2>
+		<ul>
+			<li>Know when to use (with HTTPS)</li>
+			<li>Always generate unique IV</li>
+			<li>Use key wrapping</li>
+			<li>Sign-then-encrypt with care</li>
+		</ul>
+	</section>
+
+	<section class="slide">
+		<h2>Questions?</h2>
+	</section>
+
+	<div class="progress"></div>
+
+	<footer class="badge">
+		<a href="https://github.com/warsawjs/warsawjs-slides-template">Fork me on GitHub</a>
+	</footer>
+
+	<footer class="badge badge-down">
+		<a href="#" class="fullscreen">Fullscreen</a>
+	</footer>
+
+	<script src="vendors/gamepad/gamepad.js"></script>
+	<script src="vendors/shower/shower.min.js"></script>
+	<script src="vendors/shower-gamepad/shower.gamepad.js"></script>
+	<script src="modules/fullscreen.js"></script>
+
+	<!-- Prism.js -->
+	<script src="vendors/prism/prism.js"></script>
+	<script src="vendors/prism/custom-prism.js"></script>
+
+	<!-- Highlight.js -->
+	<script src="vendors/highlight.js/highlight.min.js"></script>
+	<script>
+		hljs.initHighlightingOnLoad();
+	</script>
+	<!-- Crypto sandbox -->
+	<script src="crypto.js"></script>
+</body>
+</html>

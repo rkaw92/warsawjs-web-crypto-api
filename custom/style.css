@@ -1,0 +1,58 @@
+.slogan {
+	font-size: 200%;
+	text-align: center;
+}
+
+.slide pre.code-sample code {
+	width: auto;
+	line-height: 1.2em;
+}
+
+.code-sample {
+	margin: 0;
+	padding: 0;
+	font-size: 22px;
+}
+
+.code-sample.wide {
+	width: 1000px;
+	margin-left: -90px;
+}
+
+.higher .slide {
+	padding-top: 20px;
+}
+
+.cat {
+	position: absolute;
+	right: 60px;
+	top: 60px;
+}
+
+.diagram {
+	width: 90%;
+	height: auto;
+	margin-left: 5%;
+	margin-top: 20px;
+}
+
+.diagram.smaller {
+	width: 70%;
+	height: auto;
+	margin-left: 15%;
+}
+
+.higher {
+	margin-top: -30px;
+}
+
+.diagram.higher {
+	margin-top: -30px;
+}
+
+.decorated {
+	background-image: url("../pictures/ribbon.svg");
+	background-position: 700px 0px;
+	background-size: auto 100%;
+	background-repeat: no-repeat;
+}
