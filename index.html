@@ -63,8 +63,8 @@
 	<section class="slide">
 		<h2>Security tools...</h2>
 		<ul>
-			<li>... assume correct usage</li>
-			<li>... target a threat model</li>
+			<li>... assume correct usage (how to use)</li>
+			<li>... target a threat model (when to use)</li>
 		</ul>
 	</section>
 
@@ -78,7 +78,7 @@
 	</section>
 
 	<section class="slide">
-		<h2>When to use</h2>
+		<h2>When to use Web Crypto</h2>
 		<ul>
 			<li>End-to-end security</li>
 			<li>Untrusted platforms</li>
@@ -87,10 +87,25 @@
 	</section>
 
 	<section class="slide">
-		<h2>When not to use</h2>
+		<h2>When not to use Web Crypto</h2>
 		<ul>
 			<li>Whenever HTTPS is sufficient</li>
 		</ul>
+	</section>
+
+	<section class="slide">
+		<h2>CLI: key generation</h2>
+		<pre class="code-sample"><code class="language-bash">
+# Generate private key PEM
+openssl genrsa -out private.pem 4096
+# Derive SPKI PEM
+openssl rsa -in private.pem \
+    -pubout -out public.pem -outform PEM
+# Convert to PKCS#8 for Web Crypto
+openssl pkcs8 -inform PEM -outform PEM \
+    -in private.pem -out private-pkcs8.pem \
+    -nocrypt -topk8
+		</code></pre>
 	</section>
 
 	<section class="slide">
@@ -109,20 +124,20 @@
 
 	<section class="slide">
 		<h2>Encrypting a message (PKI) - code</h2>
-		<pre class="code-sample wide"><code>
-			const encKeyDER = extractDER(publicPEM, 'public');
-			const encKey = await window.crypto.subtle.importKey(
-				'spki',
-				encKeyDER,
-				{ name: 'RSA-OAEP', hash: 'SHA-256' },
-				false,
-				[ 'encrypt' ]
-			);
-			const cryptotext = await window.crypto.subtle.encrypt(
-				{ name: 'RSA-OAEP' },
-				encKey,
-				(new TextEncoder()).encode('Hello, world!')
-			);
+		<pre class="code-sample"><code>
+const encKeyDER = extractDER(publicPEM, 'public');
+const encKey = await window.crypto.subtle.importKey(
+    'spki',
+    encKeyDER,
+    { name: 'RSA-OAEP', hash: 'SHA-256' },
+    false,
+    [ 'encrypt' ]
+);
+const cryptotext = await window.crypto.subtle.encrypt(
+    { name: 'RSA-OAEP' },
+    encKey,
+    (new TextEncoder()).encode('Hello, world!')
+);
 		</code></pre>
 	</section>
 
@@ -139,30 +154,30 @@
 
 	<section class="slide">
 		<h2>Receiving a message (PKI) - code</h2>
-		<pre class="code-sample wide"><code>
-			const decKeyDER = extractDER(privatePEM, 'private');
-			const decKey = await window.crypto.subtle.importKey(
-				'pkcs8', // Make sure it's really PKCS#8
-				decKeyDER,
-				{ name: 'RSA-OAEP', hash: 'SHA-256' },
-				false,
-				[ 'decrypt' ]
-			);
-			const plaintext = await window.crypto.subtle.decrypt(
-				{ name: 'RSA-OAEP' },
-				decKey,
-				cryptotext
-			);
-			console.log((new TextDecoder()).decode(plaintext));
+		<pre class="code-sample"><code>
+const decKeyDER = extractDER(privatePEM, 'private');
+const decKey = await window.crypto.subtle.importKey(
+    'pkcs8', // Make sure it's really PKCS#8
+    decKeyDER,
+    { name: 'RSA-OAEP', hash: 'SHA-256' },
+    false,
+    [ 'decrypt' ]
+);
+const plaintext = await window.crypto.subtle.decrypt(
+    { name: 'RSA-OAEP' },
+    decKey,
+    cryptotext
+);
+console.log((new TextDecoder()).decode(plaintext));
 		</code></pre>
 	</section>
 
 	<section class="slide">
 		<h2>CLI: decrypting RSA message</h2>
 		<pre class="code-sample wide"><code class="language-bash">
-			openssl pkeyutl -inkey keys/private.pem -in encrypted.raw \
-			-pkeyopt rsa_padding_mode:oaep -pkeyopt rsa_oaep_md:sha256 \
-			-decrypt
+openssl pkeyutl -inkey keys/private.pem -in encrypted.raw \
+    -pkeyopt rsa_padding_mode:oaep -pkeyopt rsa_oaep_md:sha256 \
+    -decrypt
 		</code></pre>
 		<p>Note: <span style="background-color: #EEE; padding: 0 10px;">openssl rsautl</span> is deprecated and will not work for OAEP.</p>
 	</section>
@@ -179,141 +194,143 @@
 
 	<section class="slide">
 		<h2>Key wrapping - code 1/2</h2>
-		<pre class="code-sample wide"><code>
-			const messageKey = await window.crypto.subtle.generateKey(
-				{ name: 'AES-GCM', length: 256 },
-				true, // extractable - makes it wrappable
-				[ 'encrypt' ]
-			);
-			const iv = window.crypto.getRandomValues(new Uint8Array(12));
-			const cryptotext2 = await window.crypto.subtle.encrypt(
-				{ name: 'AES-GCM', iv: iv },
-				messageKey,
-				(new TextEncoder()).encode('Hello, GCM!')
-			);
+		<pre class="code-sample"><code>
+const messageKey = await window.crypto.subtle.generateKey(
+    { name: 'AES-GCM', length: 256 },
+    true, // extractable - makes it wrappable
+    [ 'encrypt' ]
+);
+const iv = window.crypto.getRandomValues(new Uint8Array(12));
+const cryptotext2 = await window.crypto.subtle.encrypt(
+    { name: 'AES-GCM', iv: iv },
+    messageKey,
+    (new TextEncoder()).encode('Hello, GCM!')
+);
 		</code></pre>
 	</section>
 
 	<section class="slide">
 		<h2>Key wrapping - code 2/2</h2>
-		<pre class="code-sample wide"><code>
-			const wrappingKey = await window.crypto.subtle.importKey(
-				'spki',
-				encKeyDER, // recipient's public key
-				{ name: 'RSA-OAEP', hash: 'SHA-256' },
-				false,
-				[ 'wrapKey' ]
-			);
-			const wrappedMessageKey = await crypto.subtle.wrapKey(
-				'raw', // format - we pick the smallest one
-				messageKey,
-				wrappingKey,
-				{ name: 'RSA-OAEP' }
-			);
+		<pre class="code-sample"><code>
+const wrappingKey = await window.crypto.subtle.importKey(
+    'spki',
+    encKeyDER, // recipient's public key
+    { name: 'RSA-OAEP', hash: 'SHA-256' },
+    false,
+    [ 'wrapKey' ]
+);
+const wrappedMessageKey = await crypto.subtle.wrapKey(
+    'raw', // format - we pick the smallest one
+    messageKey,
+    wrappingKey,
+    { name: 'RSA-OAEP' }
+);
 		</code></pre>
 	</section>
 
 	<section class="slide">
 		<h2>Key unwrapping - code 1/2</h2>
-		<pre class="code-sample wide"><code>
-			const unwrappingKey = await window.crypto.subtle.importKey(
-				'pkcs8',
-				decKeyDER, // recipient's private RSA key
-				{ name: 'RSA-OAEP', hash: 'SHA-256' },
-				false,
-				[ 'unwrapKey' ]
-			);
-			const unwrappedMessageKey = await crypto.subtle.unwrapKey(
-				'raw',
-				wrappedMessageKey,
-				unwrappingKey,
-				{ name: 'RSA-OAEP' },
-				{ name: 'AES-GCM' },
-				false, // no need for extractable
-				[ 'decrypt' ]
-			);
+		<pre class="code-sample"><code>
+const unwrappingKey = await window.crypto.subtle.importKey(
+    'pkcs8',
+    decKeyDER, // recipient's private RSA key
+    { name: 'RSA-OAEP', hash: 'SHA-256' },
+    false,
+    [ 'unwrapKey' ]
+);
+const unwrappedMessageKey = await crypto.subtle.unwrapKey(
+    'raw',
+    wrappedMessageKey,
+    unwrappingKey,
+    { name: 'RSA-OAEP' },
+    { name: 'AES-GCM' },
+    false, // no need for extractable
+    [ 'decrypt' ]
+);
 		</code></pre>
 	</section>
 
 	<section class="slide">
 		<h2>Key unwrapping - code 2/2</h2>
-		<pre class="code-sample wide"><code>
-			const plaintext2 = await window.crypto.subtle.decrypt(
-				{ name: 'AES-GCM', iv: iv }, // remember to send IV!
-				unwrappedMessageKey,
-				cryptotext2
-			);
-			console.log((new TextDecoder()).decode(plaintext2));
+		<pre class="code-sample"><code>
+const plaintext2 = await window.crypto.subtle.decrypt(
+    { name: 'AES-GCM', iv: iv }, // remember to send IV!
+    unwrappedMessageKey,
+    cryptotext2
+);
+console.log((new TextDecoder()).decode(plaintext2));
 		</code></pre>
 	</section>
 
 	<section class="slide">
 		<h2>Key unwrapping in Node.js - code</h2>
-		<pre class="code-sample wide"><code>
-			const payload = buf.slice(0, buf.byteLength - 16);
-			const authTag = buf.slice(-16);
-			const unwrappedMessageKey = crypto.privateDecrypt({
-				key: privateKeyRaw,
-				padding: crypto.constants.RSA_PKCS1_OAEP_PADDING,
-				oaepHash: 'sha256'
-			});
-			const decipher = crypto.createDecipheriv(
-				'aes-256-gcm',
-				unwrappedMessageKey,
-				iv
-			);
-			decipher.setAuthTag(authTag);
-			const buf1 = decipher.update(content);
-			// Always need to call .final() to check the auth tag:
-			const buf2 = decipher.final();
-			const decryptedContent = Buffer.concat([ buf1, buf2 ]);
+		<pre class="code-sample"><code>
+const payload = buf.slice(0, buf.byteLength - 16);
+const authTag = buf.slice(-16);
+const unwrappedMessageKey = crypto.privateDecrypt({
+    key: privateKeyRaw,
+    padding: crypto.constants.RSA_PKCS1_OAEP_PADDING,
+    oaepHash: 'sha256'
+});
+const decipher = crypto.createDecipheriv(
+    'aes-256-gcm',
+    unwrappedMessageKey,
+    iv
+);
+decipher.setAuthTag(authTag);
+const buf1 = decipher.update(content);
+// Always need to call .final() to check the auth tag:
+const buf2 = decipher.final();
+const decryptedContent = Buffer.concat([ buf1, buf2 ]);
 		</code></pre>
 	</section>
 
 	<section class="slide">
 		<h2>Signing - code</h2>
-		<pre class="code-sample wide"><code>
-			const signingKeyDER = extractDER(privatePEM, 'private');
-			const signingKey = await window.crypto.subtle.importKey(
-				'pkcs8', // Make sure it's really PKCS#8
-				signingKeyDER,
-				{ name: 'RSA-PSS', hash: 'SHA-256' },
-				false,
-				[ 'sign' ]
-			);
-			const dataToSign = (new TextEncoder()).encode('Hello, sigs!');
-			const textSignature = await window.crypto.subtle.sign(
-				{ name: 'RSA-PSS', saltLength: 32 },
-				signingKey,
-				dataToSign
-			);
+		<pre class="code-sample"><code>
+const signingKeyDER = extractDER(privatePEM, 'private');
+const signingKey = await window.crypto.subtle.importKey(
+    'pkcs8', // Make sure it's really PKCS#8
+    signingKeyDER,
+    { name: 'RSA-PSS', hash: 'SHA-256' },
+    false,
+    [ 'sign' ]
+);
+const dataToSign = (new TextEncoder()).encode('Hello, sigs!');
+const textSignature = await window.crypto.subtle.sign(
+    { name: 'RSA-PSS', saltLength: 32 },
+    signingKey,
+    dataToSign
+);
 		</code></pre>
 	</section>
 
 	<section class="slide">
 		<h2>Verifying - code</h2>
-		<pre class="code-sample wide"><code>
-			const verifyKeyDER = extractDER(publicPEM, 'public');
-			const verifyKey = await window.crypto.subtle.importKey(
-				'spki',
-				verifyKeyDER,
-				{ name: 'RSA-PSS', hash: 'SHA-256' },
-				false,
-				[ 'verify' ]
-			);
-			const isLegitimate = await window.crypto.subtle.verify(
-				{ name: 'RSA-PSS', saltLength: 32 },
-				verifyKey,
-				textSignature,
-				dataToSign // ArrayBuffer with "Hello, signatures!"
-			);
+		<pre class="code-sample"><code>
+const verifyKeyDER = extractDER(publicPEM, 'public');
+const verifyKey = await window.crypto.subtle.importKey(
+    'spki',
+    verifyKeyDER,
+    { name: 'RSA-PSS', hash: 'SHA-256' },
+    false,
+    [ 'verify' ]
+);
+const isLegitimate = await window.crypto.subtle.verify(
+    { name: 'RSA-PSS', saltLength: 32 },
+    verifyKey,
+    textSignature,
+    dataToSign // ArrayBuffer with "Hello, signatures!"
+);
 		</code></pre>
 	</section>
 
 	<section class="slide">
 		<h2>Addendum: sign + encrypt</h2>
 		<ul>
-			<li>Vulnerability: Surreptitious forwarding</li>
+            <li>Vulnerability: Surreptitious forwarding</li>
+            <li>Alice sends message X to Bob, Bob forwards to Charlie</li>
+            <li>Charlie believes Alice said X to him</li>
 			<li><a href="http://world.std.com/~dtd/sign_encrypt/sign_encrypt7.html">Mitigation</a></li>
 		</ul>
 	</section>
